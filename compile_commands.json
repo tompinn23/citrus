@@ -1,0 +1,20 @@
+[
+  {
+    "arguments": [
+      "/usr/bin/cc",
+      "-c",
+      "-g",
+      "-Werror",
+      "-I.",
+      "-DWLR_USE_UNSTABLE=1",
+      "-I/usr/include/libdrm",
+      "-I/usr/include/pixman-1",
+      "-o",
+      "citrus",
+      "citrus.c"
+    ],
+    "directory": "/home/pooh/citrus",
+    "file": "/home/pooh/citrus/citrus.c",
+    "output": "/home/pooh/citrus/citrus"
+  }
+]

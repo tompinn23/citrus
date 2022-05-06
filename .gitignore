@@ -1,0 +1,4 @@
+citrus
+*.o
+xdg-shell-protocol.h
+.cache/
