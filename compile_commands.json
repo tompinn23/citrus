@@ -6,6 +6,7 @@
       "-g",
       "-Werror",
       "-I.",
+      "-I/usr/local/include",
       "-DWLR_USE_UNSTABLE=1",
       "-I/usr/include/libdrm",
       "-I/usr/include/pixman-1",

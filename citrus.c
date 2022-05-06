@@ -1,50 +1,5 @@
-
-#include <bits/time.h>
-#include <wayland-server-core.h>
-#include <wayland-util.h>
-#include <wlr/backend.h>
-
-#include <wlr/types/wlr_output.h>
-#include <wlr/render/wlr_renderer.h>
-#include <wlr/render/allocator.h>
-
-#include <wlr/types/wlr_subcompositor.h>
-#include <wlr/types/wlr_compositor.h>
-#include <wlr/types/wlr_data_device.h>
-#include <wlr/types/wlr_output_layout.h>
-#include <wlr/types/wlr_scene.h>
-#include <wlr/types/wlr_xdg_shell.h>
-
-#include <xdg-shell-protocol.h>
-
-#include <assert.h>
-#include <stdio.h>
-#include <stdlib.h>
-struct citrus_server {
-    struct wl_display* wl_display;
-    struct wl_event_loop* wl_event_loop;
-
-    struct wlr_backend* backend;
-    struct wlr_renderer* renderer;
-    struct wlr_allocator* allocator;
-    struct wlr_output_layout* output_layout;
-    struct wlr_scene* scene;
-
-    struct wlr_xdg_shell* xdg_shell;
-    struct wl_listener new_xdg_surface;
-    struct wl_list views;
-
-    struct wl_listener new_output;
-    struct wl_list outputs;
-};
-
-struct citrus_output {
-    struct wl_list link;
-    struct citrus_server* server;
-    struct wlr_output* wlr_output;
-    struct wl_listener frame;
-    struct wl_listener destroy;
-};
+#include "citrus.h"
+#include "citrus_xdg.h"
 
 static void output_frame(struct wl_listener* listener, void* data) {
     struct citrus_output* output = wl_container_of(listener, output, frame);
@@ -102,8 +57,72 @@ static void new_output_notify(struct wl_listener* listener, void* data) {
 }
 
 static void new_xdg_surface_notify(struct wl_listener* listener, void* data) {
-    struct citrus_server*
+    struct citrus_server* server = wl_container_of(listener, server, new_xdg_surface);
+    struct wlr_xdg_surface* xdg_surface = data;
+
+    if(xdg_surface->role == WLR_XDG_SURFACE_ROLE_POPUP) {
+        struct wlr_xdg_surface* parent = wlr_xdg_surface_from_wlr_surface(xdg_surface->popup->parent);
+        struct wlr_scene_node* parent_node = parent->data;
+        xdg_surface->data = wlr_scene_xdg_surface_create(parent_node, xdg_surface);
+        return;
+    }
+    struct citrus_view* view = calloc(1, sizeof(*view));
+    view->server = server;
+    view->xdg_toplevel = xdg_surface->toplevel;
+    view->scene_node = wlr_scene_xdg_surface_create(&view->server->scene->node, view->xdg_toplevel->base);
+
+	view->scene_node->data = view;
+	xdg_surface->data = view->scene_node;
+
+	/* Listen to the various events it can emit */
+	view->map.notify = xdg_toplevel_map;
+	wl_signal_add(&xdg_surface->events.map, &view->map);
+	view->unmap.notify = xdg_toplevel_unmap;
+	wl_signal_add(&xdg_surface->events.unmap, &view->unmap);
+	view->destroy.notify = xdg_toplevel_destroy;
+	wl_signal_add(&xdg_surface->events.destroy, &view->destroy);
+
+	/* cotd */
+	struct wlr_xdg_toplevel *toplevel = xdg_surface->toplevel;
+	view->request_move.notify = xdg_toplevel_request_move;
+	wl_signal_add(&toplevel->events.request_move, &view->request_move);
+	view->request_resize.notify = xdg_toplevel_request_resize;
+	wl_signal_add(&toplevel->events.request_resize, &view->request_resize);
+	view->request_maximize.notify = xdg_toplevel_request_maximize;
+	wl_signal_add(&toplevel->events.request_maximize,
+		&view->request_maximize);
+	view->request_fullscreen.notify = xdg_toplevel_request_fullscreen;
+	wl_signal_add(&toplevel->events.request_fullscreen,
+		&view->request_fullscreen);
+
 }
+
+void server_cursor_motion(struct wl_listener* listener, void* data) {
+
+}
+void server_cursor_motion_absolute(struct wl_listener* listener, void* data) {
+
+}
+void server_cursor_button(struct wl_listener* listener, void* data) {
+
+}
+void server_cursor_axis(struct wl_listener* listener, void* data) {
+
+}
+void server_cursor_frame(struct wl_listener* listener, void* data) {
+
+}
+void server_new_input(struct wl_listener* listener, void* data) {
+
+}
+void seat_request_cursor(struct wl_listener* listener, void* data) {
+
+}
+void seat_request_set_selection(struct wl_listener* listener, void* data) {
+    
+}
+
+
 
 
 int main(int argc, char** argv) {
@@ -134,6 +153,45 @@ int main(int argc, char** argv) {
     server.xdg_shell = wlr_xdg_shell_create(server.wl_display);
     server.new_xdg_surface.notify = new_xdg_surface_notify;
     wl_signal_add(&server.xdg_shell->events.new_surface, &server.new_xdg_surface);
+
+    server.cursor = wlr_cursor_create();
+	wlr_cursor_attach_output_layout(server.cursor, server.output_layout);
+
+	server.cursor_mgr = wlr_xcursor_manager_create(NULL, 24);
+	wlr_xcursor_manager_load(server.cursor_mgr, 1);
+
+	server.cursor_mode = CURSOR_PASSTHROUGH;
+	server.cursor_motion.notify = server_cursor_motion;
+	wl_signal_add(&server.cursor->events.motion, &server.cursor_motion);
+	server.cursor_motion_absolute.notify = server_cursor_motion_absolute;
+	wl_signal_add(&server.cursor->events.motion_absolute,
+			&server.cursor_motion_absolute);
+	server.cursor_button.notify = server_cursor_button;
+	wl_signal_add(&server.cursor->events.button, &server.cursor_button);
+	server.cursor_axis.notify = server_cursor_axis;
+	wl_signal_add(&server.cursor->events.axis, &server.cursor_axis);
+	server.cursor_frame.notify = server_cursor_frame;
+	wl_signal_add(&server.cursor->events.frame, &server.cursor_frame);
+
+ 
+
+    wl_list_init(&server.keyboards);
+	server.new_input.notify = server_new_input;
+	wl_signal_add(&server.backend->events.new_input, &server.new_input);
+	server.seat = wlr_seat_create(server.wl_display, "seat0");
+	server.request_cursor.notify = seat_request_cursor;
+	wl_signal_add(&server.seat->events.request_set_cursor,
+			&server.request_cursor);
+	server.request_set_selection.notify = seat_request_set_selection;
+	wl_signal_add(&server.seat->events.request_set_selection,
+			&server.request_set_selection);
+
+    const char *socket = wl_display_add_socket_auto(server.wl_display);
+	if (!socket) {
+		wlr_backend_destroy(server.backend);
+		return 1;
+	}
+
 
     if(!wlr_backend_start(server.backend)) {
         fprintf(stderr, "Failed to start backend\n");

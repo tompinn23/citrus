@@ -14,12 +14,12 @@ xdg-shell-protocol.h:
 		$(WAYLAND_PROTOCOLS)/stable/xdg-shell/xdg-shell.xml $@
 
 
-citrus: citrus.c xdg-shell-protocol.h
+citrus: citrus.c citrus_xdg.c xdg-shell-protocol.h
 	$(CC) $(CFLAGS) \
 		-g -Werror -I. -I/usr/local/include \
 		-DWLR_USE_UNSTABLE=1 \
 		-L/usr/local/lib \
-		-o $@ $< \
+		-o $@ $^ \
 		$(LIBS)
 
 .PHONY: clean
